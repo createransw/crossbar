@@ -62,18 +62,18 @@ generate
     for (genvar i = 0; i < S_DATA_COUNT; ++i) begin : control
         always @(posedge clk) begin
             case (c_state[i])
-                WAIT: begin
+                WAIT: begin // данных для передачи пока нет
                     if (s_valid_i[i] && ~s_ready_o[i]) begin
                         c_state[i] <= HALT;
                     end else if (s_valid_i[i]) begin
                         c_state[i] <= WRITE;
                     end
                 end
-                HALT: begin
+                HALT: begin // есть данные для передачи, но slave не готово
                     if (s_ready_o[i])
                         c_state[i] <= WRITE;
                 end
-                WRITE: begin
+                WRITE: begin // slave-устройство готово
                     if (~s_ready_o[i]) begin
                         c_state[i] <= HALT;
                     end else begin
@@ -83,8 +83,9 @@ generate
                         m_last_o[dest] <= s_last_i[i];
                         m_valid_o[dest] <= 1;
 
-                        if (s_last_i[i]) begin
+                        if (s_last_i[i]) begin // предаётся последний пакет
                             c_state[i] <= WAIT;
+                            // сигнализируем о конце передачи
                             m_last_o[dest] <= 0;
                             m_valid_o[dest] <= 0;
                         end

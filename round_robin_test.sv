@@ -63,6 +63,15 @@ initial begin
     #10;
     s_last = 0;
     s_valid_i[0] = 0;
+    #10;
+    s_last = 1;
+    #10;
+    s_last = 0;
+    s_valid_i[1] = 0;
+    #10;
+    s_valid_i = '1;
+    s_dest_i[0] = 1;
+    s_dest_i[1] = 1;
     #50;
     
 

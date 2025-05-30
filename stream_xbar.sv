@@ -36,7 +36,7 @@ end
 
 generate
     // создаём round_robin модуль для каждого выхода
-    for (genvar i = 0; i < M_DATA_COUNT; ++i) begin : control
+    for (genvar i = 0; i < M_DATA_COUNT; ++i) begin : order
         logic [T_DEST_WIDTH - 1 : 0] number;
         assign number = i;
         round_robin #(
@@ -56,6 +56,47 @@ generate
         );
     end
 endgenerate
+
+generate
+    // создаём управляющий автомат для каждого входа
+    for (genvar i = 0; i < S_DATA_COUNT; ++i) begin : control
+        always @(posedge clk) begin
+            case (c_state[i])
+                WAIT: begin
+                    if (s_valid_i[i] && ~s_ready_o[i]) begin
+                        c_state[i] <= HALT;
+                    end else if (s_valid_i[i]) begin
+                        c_state[i] <= WRITE;
+                    end
+                end
+                HALT: begin
+                    if (s_ready_o[i])
+                        c_state[i] <= WRITE;
+                end
+                WRITE: begin
+                    if (~s_ready_o[i]) begin
+                        c_state[i] <= HALT;
+                    end else begin
+
+                        m_data_o[dest] <= s_data_i[i];
+                        m_id_o[dest] <= i;
+                        m_last_o[dest] <= s_last_i[i];
+                        m_valid_o[dest] <= 1;
+
+                        if (s_last_i[i]) begin
+                            c_state[i] <= WAIT;
+                            m_last_o[dest] <= 0;
+                            m_valid_o[dest] <= 0;
+                        end
+                    end
+                end
+            endcase
+        end
+    end
+endgenerate
+
+
+
 
 generate
     // автомат для каждого master-устройства

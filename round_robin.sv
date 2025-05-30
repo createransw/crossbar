@@ -11,7 +11,7 @@ module round_robin #(
     input  logic                        m_ready,
 
     input  logic [T_DEST_WIDTH - 1 : 0] s_dest_i  [S_DATA_COUNT - 1 : 0],
-    input  logic [T_DEST_WIDTH - 1 : 0] s_valid_i,
+    input  logic [S_DATA_COUNT - 1 : 0] s_valid_i,
     input  logic                        s_last,
     output logic [S_DATA_COUNT - 1 : 0] s_ready_o
 );
@@ -34,6 +34,7 @@ always_ff @(posedge clk) begin
             if (~m_ready) begin
                 c_state = WAIT;
             end else begin
+                s_ready_o <= '0;
                 for (int i = 0; i < S_DATA_COUNT; ++i) begin
                     logic [T_ID___WIDTH - 1 : 0] id; // номер master-кандидата
                     logic fit; // действительно ли требуется передача
@@ -42,6 +43,7 @@ always_ff @(posedge clk) begin
                     fit = s_valid_i[id] && (s_dest_i[id] == number);
                     if (fit) begin
                         order <= id; // обновляем номер 
+                        s_ready_o[id] <= 1;
                         c_state <= BUSY;
                         break;
                     end
@@ -55,7 +57,6 @@ always_ff @(posedge clk) begin
                 s_ready_o[order] <= 1; // показываем, что данные принимаются
 
                 if (s_last) begin // обрабатывается последний пакет
-                    s_ready_o <= 0;
                     order <= (order + 1) % S_DATA_COUNT;
                     c_state <= READY;
                 end

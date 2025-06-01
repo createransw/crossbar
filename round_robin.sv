@@ -1,5 +1,6 @@
 module round_robin #(
-    parameter  S_DATA_COUNT = 2,
+    parameter  T_DATA_WIDTH = 8,
+               S_DATA_COUNT = 2,
                M_DATA_COUNT = 3,
     localparam T_ID___WIDTH = $clog2(S_DATA_COUNT),
                T_DEST_WIDTH = $clog2(M_DATA_COUNT)
@@ -9,6 +10,7 @@ module round_robin #(
 
     input  logic [T_DEST_WIDTH - 1 : 0] number,
 
+    input  logic [T_DATA_WIDTH - 1 : 0] s_data_i [S_DATA_COUNT - 1 : 0],
     input  logic [T_DEST_WIDTH - 1 : 0] s_dest_i  [S_DATA_COUNT - 1 : 0],
     input  logic [S_DATA_COUNT - 1 : 0] s_last_i,
     input  logic [S_DATA_COUNT - 1 : 0] s_valid_i,
@@ -17,6 +19,9 @@ module round_robin #(
 
     output logic                        m_valid_o,
     output logic                        m_last_o,
+
+    output logic [T_DATA_WIDTH - 1 : 0] m_data_o,
+    output logic [T_ID___WIDTH - 1 : 0] m_id_o,
 
     output logic [T_ID___WIDTH - 1 : 0] s_ready_id
 );
@@ -35,6 +40,7 @@ always_ff @(posedge clk or negedge rst_n) begin
     end
 end
 
+assign s_ready_id = order;
 always_ff @(posedge clk) begin
     case (c_state)
         WAIT: begin // slave-устройство ожидает передачу или m_ready_i
@@ -49,8 +55,9 @@ always_ff @(posedge clk) begin
                     if (fit) begin // найдено подходящее master-устройство
                         order <= id; // обновление счетчика порядка
                         m_valid_o <= 1;
-                        s_ready_id <= id;
                         m_last_o <= s_last_i[id];
+                        m_data_o <= s_data_i[id];
+                        m_id_o <= id;
 
                         if (s_last_i[i])
                             c_state <= LAST;
@@ -62,11 +69,13 @@ always_ff @(posedge clk) begin
         end
         BUSY: begin  // идёт передача 
             if (~m_ready_i) begin
+                m_valid_o <= 0;
                 c_state = WAIT;
             end else begin
                 m_valid_o <= 1;
-                s_ready_id <= order;
                 m_last_o <= s_last_i[order];
+                m_data_o <= s_data_i[order];
+                m_id_o <= order;
 
                 if (s_last_i[order])
                     c_state <= LAST;
@@ -74,6 +83,7 @@ always_ff @(posedge clk) begin
         end
         LAST: begin // передаётся последний пакет
             if (~m_ready_i) begin
+                m_valid_o <= 0;
                 c_state <= WAIT;
             end else begin
                 logic instant;
@@ -89,8 +99,9 @@ always_ff @(posedge clk) begin
                         instant = 1;
                         order <= id; // обновление счетчика порядка
                         m_valid_o <= 1;
-                        s_ready_id <= id;
                         m_last_o <= s_last_i[id];
+                        m_data_o <= s_data_i[id];
+                        m_id_o <= id;
 
                         if (s_last_i[i])
                             c_state <= LAST;
@@ -98,7 +109,7 @@ always_ff @(posedge clk) begin
                             c_state <= BUSY;
                     end
                 end
-                if (~instant) begin
+                if (~instant) begin // нового запроса нет
                     m_valid_o <= 0;
                     m_last_o <= 0;
                     order <= (order + 1) % S_DATA_COUNT;

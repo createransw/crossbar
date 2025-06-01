@@ -21,19 +21,8 @@ module stream_xbar #(
     input  logic [M_DATA_COUNT-1:0] m_ready_i
 );
 
-typedef enum {WAIT, WRITE} state;
-logic c_state [S_DATA_COUNT - 1 : 0]; // состояния автоматов для master
-
 // id master-устройств, которым открыта запись
 logic [T_ID___WIDTH - 1 : 0] s_ready_id [M_DATA_COUNT - 1 : 0];
-
-always @(posedge clk or negedge rst_n) begin
-    if (~rst_n) begin
-        for (int i = 0; i < S_DATA_COUNT; ++i)
-            c_state[i] <= WAIT;
-        s_ready_o <= '1;
-    end
-end
 
 generate
     // создаём round_robin модуль для каждого выхода
@@ -74,31 +63,13 @@ generate
 endgenerate
 
 generate
-    // создаём управляющий автомат для каждого входа
+    // создаём связь входа
     for (genvar i = 0; i < S_DATA_COUNT; ++i) begin : control
         logic dest;
         logic match;
         assign dest = s_dest_i[i];
         assign match = s_valid_i[i] && (s_ready_id[dest] == i) && m_ready_i[dest];
-
-        always @(posedge clk) begin
-            case(c_state[i])
-                WAIT: begin
-                    if (match) begin // slave-устройство готово к записи
-                        s_ready_o[i] <= 1;
-                        c_state[i] <= WRITE;
-                    end else if (s_valid_i[i]) begin
-                        s_ready_o[i] <= 0;
-                    end
-                end
-                WRITE: begin // продолжается запись
-                    if (~match) begin // записи нет
-                        s_ready_o[i] <= 0;
-                        c_state[i] <= WAIT;
-                    end
-                end
-            endcase
-        end
+        assign s_ready_o[i] = match;
     end
 endgenerate
 

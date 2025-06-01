@@ -21,16 +21,17 @@ module stream_xbar #(
     input  logic [M_DATA_COUNT-1:0] m_ready_i
 );
 
-typedef enum {WAIT, HALT, WRITE} state;
-logic [1 : 0] c_state [S_DATA_COUNT - 1 : 0]; // состояния автоматов для master
+typedef enum {WAIT, WRITE} state;
+logic c_state [S_DATA_COUNT - 1 : 0]; // состояния автоматов для master
+
+// id master-устройств, которым открыта запись
+logic [T_ID___WIDTH - 1 : 0] s_ready_id [M_DATA_COUNT - 1 : 0];
 
 always @(posedge clk or negedge rst_n) begin
     if (~rst_n) begin
         for (int i = 0; i < S_DATA_COUNT; ++i)
             c_state[i] <= WAIT;
-        s_ready_o <= '0;
-        m_last_o <= '0;
-        m_valid_o <= '0;
+        s_ready_o <= '1;
     end
 end
 
@@ -38,8 +39,14 @@ generate
     // создаём round_robin модуль для каждого выхода
     for (genvar i = 0; i < M_DATA_COUNT; ++i) begin : order
         logic [T_DEST_WIDTH - 1 : 0] number;
+        logic valid;
+        logic last;
+
         assign number = i;
+        assign m_valid_o[i] = valid;
+        assign m_last_o[i] = last;
         round_robin #(
+            .T_DATA_WIDTH(T_DATA_WIDTH),
             .S_DATA_COUNT(S_DATA_COUNT),
             .M_DATA_COUNT(M_DATA_COUNT)
         ) r_r (
@@ -47,12 +54,21 @@ generate
             .rst_n(rst_n),
 
             .number(number),
-            .m_ready(m_ready_i[i]),
 
+            .s_data_i(s_data_i),
             .s_dest_i(s_dest_i),
+            .s_last_i(s_last_i),
             .s_valid_i(s_valid_i),
-            .s_last(m_last_o[i])),
-            .s_ready_o(s_ready_o)
+
+            .m_ready_i(m_ready_i[i]),
+
+            .m_valid_o(valid),
+            .m_last_o(last),
+
+            .m_data_o(m_data_o[i]),
+            .m_id_o(m_id_o[i]),
+
+            .s_ready_id(s_ready_id[i])
         );
     end
 endgenerate
@@ -60,35 +76,25 @@ endgenerate
 generate
     // создаём управляющий автомат для каждого входа
     for (genvar i = 0; i < S_DATA_COUNT; ++i) begin : control
+        logic dest;
+        logic match;
+        assign dest = s_dest_i[i];
+        assign match = s_valid_i[i] && (s_ready_id[dest] == i) && m_ready_i[dest];
+
         always @(posedge clk) begin
-            case (c_state[i])
-                WAIT: begin // данных для передачи пока нет
-                    if (s_valid_i[i] && ~s_ready_o[i]) begin
-                        c_state[i] <= HALT;
-                    end else if (s_valid_i[i]) begin
+            case(c_state[i])
+                WAIT: begin
+                    if (match) begin // slave-устройство готово к записи
+                        s_ready_o[i] <= 1;
                         c_state[i] <= WRITE;
+                    end else if (s_valid_i[i]) begin
+                        s_ready_o[i] <= 0;
                     end
                 end
-                HALT: begin // есть данные для передачи, но slave не готово
-                    if (s_ready_o[i])
-                        c_state[i] <= WRITE;
-                end
-                WRITE: begin // slave-устройство готово
-                    if (~s_ready_o[i]) begin
-                        c_state[i] <= HALT;
-                    end else begin
-
-                        m_data_o[dest] <= s_data_i[i];
-                        m_id_o[dest] <= i;
-                        m_last_o[dest] <= s_last_i[i];
-                        m_valid_o[dest] <= 1;
-
-                        if (s_last_i[i]) begin // предаётся последний пакет
-                            c_state[i] <= WAIT;
-                            // сигнализируем о конце передачи
-                            m_last_o[dest] <= 0;
-                            m_valid_o[dest] <= 0;
-                        end
+                WRITE: begin // продолжается запись
+                    if (~match) begin // записи нет
+                        s_ready_o[i] <= 0;
+                        c_state[i] <= WAIT;
                     end
                 end
             endcase
@@ -96,8 +102,4 @@ generate
     end
 endgenerate
 
-
-
-
-generate
-    // автомат для каждого master-устройства
+endmodule

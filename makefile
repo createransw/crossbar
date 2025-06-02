@@ -1,6 +1,5 @@
 QUARTUS_PATH = ~/.intelFPGA_lite/24.1std/quartus/bin/
-PROJECT_NAME = crossbar
-DEVICE = 5CEBA2F17A7
+PROJECT_NAME = stream_xbar
 
 test:
 	~/.intelFPGA/20.1/modelsim_ase/linuxaloem/vsim -c -do run_sim.do

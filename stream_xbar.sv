@@ -2,7 +2,7 @@ module stream_xbar #(
     parameter  T_DATA_WIDTH = 8,
                S_DATA_COUNT = 2,
                M_DATA_COUNT = 3,
-    localparam T_ID___WIDTH = $clog2(S_DATA_COUNT),
+               T_ID___WIDTH = $clog2(S_DATA_COUNT),
                T_DEST_WIDTH = $clog2(M_DATA_COUNT)
 )(
     input logic clk,
@@ -26,7 +26,8 @@ logic [T_ID___WIDTH - 1 : 0] s_ready_id [M_DATA_COUNT - 1 : 0];
 
 generate
     // создаём round_robin модуль для каждого выхода
-    for (genvar i = 0; i < M_DATA_COUNT; ++i) begin : order
+    genvar i;
+    for (i = 0; i < M_DATA_COUNT; ++i) begin : order
         logic [T_DEST_WIDTH - 1 : 0] number;
         logic valid;
         logic last;
@@ -64,12 +65,13 @@ endgenerate
 
 generate
     // создаём связь входа
-    for (genvar i = 0; i < S_DATA_COUNT; ++i) begin : control
+    genvar j;
+    for (j = 0; j < S_DATA_COUNT; ++j) begin : control
         logic dest;
         logic match;
-        assign dest = s_dest_i[i];
-        assign match = s_valid_i[i] && (s_ready_id[dest] == i) && m_ready_i[dest];
-        assign s_ready_o[i] = match;
+        assign dest = s_dest_i[j];
+        assign match = s_valid_i[j] && (s_ready_id[dest] == j) && m_ready_i[dest];
+        assign s_ready_o[j] = match;
     end
 endgenerate
 

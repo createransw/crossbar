@@ -6,8 +6,3 @@ test:
 
 compile:
 	$(QUARTUS_PATH)/quartus_sh --flow compile $(PROJECT_NAME).qpf
-
-reports:
-	cat ./output_files/*.summary
-
-synthesis: compile reports
